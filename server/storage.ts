@@ -1,37 +1,41 @@
-import { type User, type InsertUser } from "@shared/schema";
+import { type ResumeSession, type InsertResumeSession } from "@shared/schema";
 import { randomUUID } from "crypto";
 
-// modify the interface with any CRUD methods
-// you might need
-
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  createResumeSession(session: InsertResumeSession): Promise<ResumeSession>;
+  getResumeSession(id: string): Promise<ResumeSession | undefined>;
+  updateResumeSession(id: string, updates: Partial<ResumeSession>): Promise<ResumeSession | undefined>;
 }
 
 export class MemStorage implements IStorage {
-  private users: Map<string, User>;
+  private sessions: Map<string, ResumeSession>;
 
   constructor() {
-    this.users = new Map();
+    this.sessions = new Map();
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
+  async createResumeSession(insertSession: InsertResumeSession): Promise<ResumeSession> {
     const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+    const session: ResumeSession = { 
+      ...insertSession, 
+      id,
+      createdAt: new Date(),
+    };
+    this.sessions.set(id, session);
+    return session;
+  }
+
+  async getResumeSession(id: string): Promise<ResumeSession | undefined> {
+    return this.sessions.get(id);
+  }
+
+  async updateResumeSession(id: string, updates: Partial<ResumeSession>): Promise<ResumeSession | undefined> {
+    const session = this.sessions.get(id);
+    if (!session) return undefined;
+    
+    const updated = { ...session, ...updates };
+    this.sessions.set(id, updated);
+    return updated;
   }
 }
 
