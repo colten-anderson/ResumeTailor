@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
-const pdfParse = require("pdf-parse");
+import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 import OpenAI from "openai";
 import { storage } from "./storage";
@@ -25,8 +25,13 @@ async function parseResumeFile(file: Express.Multer.File): Promise<string> {
   const extension = file.originalname.split('.').pop()?.toLowerCase();
   
   if (extension === 'pdf') {
-    const pdfData = await pdfParse(file.buffer);
-    return pdfData.text;
+    const parser = new PDFParse({ data: file.buffer });
+    try {
+      const result = await parser.getText();
+      return result.text;
+    } finally {
+      await parser.destroy();
+    }
   } else if (extension === 'docx') {
     const result = await mammoth.extractRawText({ buffer: file.buffer });
     return result.value;
@@ -129,6 +134,31 @@ Return ONLY the tailored resume text, no explanations or additional commentary.`
     } catch (error: any) {
       console.error("Error fetching session:", error);
       res.status(500).json({ error: error.message || "Failed to fetch session" });
+    }
+  });
+
+  // Test endpoint for automated testing - accepts text content directly
+  app.post("/api/test/upload-resume-text", async (req, res) => {
+    try {
+      const { fileName, content } = req.body;
+      
+      if (!fileName || !content) {
+        return res.status(400).json({ error: "fileName and content required" });
+      }
+
+      const session = await storage.createResumeSession({
+        fileName,
+        originalContent: content,
+      });
+
+      res.json({
+        sessionId: session.id,
+        fileName: session.fileName,
+        content: session.originalContent,
+      });
+    } catch (error: any) {
+      console.error("Error creating test session:", error);
+      res.status(500).json({ error: error.message || "Failed to create test session" });
     }
   });
 
