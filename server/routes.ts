@@ -21,6 +21,53 @@ const tailorRequestSchema = z.object({
   jobDescription: z.string().min(50),
 });
 
+const extractJobUrlSchema = z.object({
+  url: z.string().url().refine(
+    (url) => {
+      try {
+        const parsed = new URL(url);
+        // Only allow HTTPS scheme
+        if (parsed.protocol !== 'https:') {
+          return false;
+        }
+        // Block private IP ranges and localhost
+        const hostname = parsed.hostname.toLowerCase();
+        if (
+          hostname === 'localhost' ||
+          hostname === '127.0.0.1' ||
+          hostname === '0.0.0.0' ||
+          hostname.startsWith('192.168.') ||
+          hostname.startsWith('10.') ||
+          hostname.startsWith('172.16.') ||
+          hostname.startsWith('172.17.') ||
+          hostname.startsWith('172.18.') ||
+          hostname.startsWith('172.19.') ||
+          hostname.startsWith('172.20.') ||
+          hostname.startsWith('172.21.') ||
+          hostname.startsWith('172.22.') ||
+          hostname.startsWith('172.23.') ||
+          hostname.startsWith('172.24.') ||
+          hostname.startsWith('172.25.') ||
+          hostname.startsWith('172.26.') ||
+          hostname.startsWith('172.27.') ||
+          hostname.startsWith('172.28.') ||
+          hostname.startsWith('172.29.') ||
+          hostname.startsWith('172.30.') ||
+          hostname.startsWith('172.31.') ||
+          hostname === '[::1]' ||
+          hostname.startsWith('169.254.') // Link-local
+        ) {
+          return false;
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    { message: 'Only HTTPS URLs from public domains are allowed' }
+  ),
+});
+
 async function parseResumeFile(file: Express.Multer.File): Promise<string> {
   const extension = file.originalname.split('.').pop()?.toLowerCase();
   
@@ -121,6 +168,104 @@ Return ONLY the tailored resume text, no explanations or additional commentary.`
     } catch (error: any) {
       console.error("Error tailoring resume:", error);
       res.status(500).json({ error: error.message || "Failed to tailor resume" });
+    }
+  });
+
+  app.post("/api/extract-job-from-url", async (req, res) => {
+    try {
+      const validation = extractJobUrlSchema.safeParse(req.body);
+      
+      if (!validation.success) {
+        return res.status(400).json({ 
+          error: validation.error.issues[0]?.message || "Invalid URL",
+          details: validation.error.issues 
+        });
+      }
+
+      const { url } = validation.data;
+
+      // Fetch the HTML content with timeout and size limit
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+      try {
+        const response = await fetch(url, {
+          signal: controller.signal,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          }
+        });
+
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+          return res.status(400).json({ 
+            error: `Failed to fetch URL: ${response.status} ${response.statusText}` 
+          });
+        }
+
+        // Limit HTML size to 500KB to prevent abuse
+        const contentLength = response.headers.get('content-length');
+        if (contentLength && parseInt(contentLength) > 500000) {
+          return res.status(400).json({ 
+            error: "Page too large - please use the 'Paste Text' option instead" 
+          });
+        }
+
+        const html = await response.text();
+        
+        // Additional size check after download
+        if (html.length > 500000) {
+          return res.status(400).json({ 
+            error: "Page content too large - please use the 'Paste Text' option instead" 
+          });
+        }
+
+        // Truncate HTML to reasonable size for OpenAI (keep first 100KB which should contain the job description)
+        const truncatedHtml = html.slice(0, 100000);
+
+        // Use OpenAI to extract the job description from HTML
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: `You are a job description extractor. Extract the complete job description from the provided HTML content. 
+
+Focus on extracting:
+- Job title and company
+- Job description and responsibilities
+- Required qualifications and skills
+- Preferred qualifications (if any)
+- Company information and benefits (if relevant)
+
+Return the extracted job description as clean, well-formatted text. Remove all HTML tags, navigation elements, headers, footers, and irrelevant content. If the page requires authentication or the job posting is not found, return "ERROR: Could not extract job description - the page may require login or the posting may no longer be available."`
+            },
+            {
+              role: "user",
+              content: truncatedHtml
+            }
+          ],
+          temperature: 0.3,
+          max_tokens: 1500,
+        });
+
+        const extractedDescription = completion.choices[0]?.message?.content || "";
+
+        if (extractedDescription.startsWith("ERROR:")) {
+          return res.status(400).json({ error: extractedDescription });
+        }
+
+        res.json({ jobDescription: extractedDescription });
+      } finally {
+        clearTimeout(timeout);
+      }
+    } catch (error: any) {
+      console.error("Error extracting job from URL:", error);
+      if (error.name === 'AbortError') {
+        return res.status(400).json({ error: "Request timeout - the page took too long to load" });
+      }
+      res.status(500).json({ error: error.message || "Failed to extract job description from URL" });
     }
   });
 
