@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Download, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import ThemeToggle from "@/components/ThemeToggle";
 import ProgressStepper from "@/components/ProgressStepper";
 import FileUpload from "@/components/FileUpload";
@@ -19,41 +20,52 @@ const steps = [
 export default function Home() {
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [sessionId, setSessionId] = useState<string>("");
   const [jobDescription, setJobDescription] = useState("");
   const [originalResume, setOriginalResume] = useState("");
   const [tailoredResume, setTailoredResume] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
 
-  const handleFileSelect = (file: File) => {
+  const handleFileSelect = async (file: File) => {
     setSelectedFile(file);
-    // TODO: Parse file content here
-    // Simulate parsing
-    const mockContent = `${file.name.toUpperCase().replace(/\.(PDF|DOCX)$/i, '')}
-Software Engineer
-
-CONTACT
-Email: user@email.com
-Phone: (555) 123-4567
-
-EXPERIENCE
-Software Engineer | Previous Company
-2020 - Present
-• Developed web applications
-• Collaborated with teams
-• Implemented features
-
-SKILLS
-JavaScript, React, Node.js, Python`;
+    setIsUploading(true);
     
-    setOriginalResume(mockContent);
-    toast({
-      title: "Resume uploaded",
-      description: "File parsed successfully",
-    });
+    try {
+      const formData = new FormData();
+      formData.append('resume', file);
+      
+      const response = await fetch('/api/upload-resume', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to upload resume');
+      }
+      
+      const data = await response.json();
+      setSessionId(data.sessionId);
+      setOriginalResume(data.content);
+      
+      toast({
+        title: "Resume uploaded",
+        description: "File parsed successfully",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Upload failed",
+        description: error.message || "Failed to upload and parse resume",
+        variant: "destructive",
+      });
+      setSelectedFile(null);
+    } finally {
+      setIsUploading(false);
+    }
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep === 1 && !selectedFile) {
       toast({
         title: "No file selected",
@@ -73,49 +85,43 @@ JavaScript, React, Node.js, Python`;
     }
 
     if (currentStep === 2) {
-      // Simulate AI processing
       setIsProcessing(true);
       setCurrentStep(3);
       
-      setTimeout(() => {
-        // TODO: Call AI API here
-        const mockTailored = `${selectedFile?.name.toUpperCase().replace(/\.(PDF|DOCX)$/i, '') || 'RESUME'}
-Senior Software Engineer
-
-CONTACT
-Email: user@email.com
-Phone: (555) 123-4567
-LinkedIn: linkedin.com/in/user
-
-PROFESSIONAL SUMMARY
-Results-driven software engineer with expertise in modern web technologies
-and proven track record of delivering scalable solutions.
-
-EXPERIENCE
-Software Engineer | Previous Company
-2020 - Present
-• Architected and developed full-stack web applications using React and Node.js
-• Led cross-functional teams to deliver high-impact features
-• Implemented CI/CD pipelines improving deployment efficiency by 50%
-• Mentored junior developers and conducted code reviews
-
-TECHNICAL SKILLS
-Frontend: JavaScript, React, TypeScript, HTML5, CSS3
-Backend: Node.js, Python, Express, RESTful APIs
-Tools: Git, Docker, AWS, CI/CD, Agile methodologies
-
-ACHIEVEMENTS
-• Optimized application performance resulting in 40% faster load times
-• Successfully delivered 15+ production features on schedule`;
+      try {
+        const response = await fetch('/api/tailor-resume', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            sessionId,
+            jobDescription,
+          }),
+        });
         
-        setTailoredResume(mockTailored);
+        if (!response.ok) {
+          throw new Error('Failed to tailor resume');
+        }
+        
+        const data = await response.json();
+        setTailoredResume(data.tailoredContent);
         setIsProcessing(false);
         setCurrentStep(4);
+        
         toast({
           title: "Resume tailored!",
           description: "Your resume has been optimized for this position",
         });
-      }, 2500);
+      } catch (error: any) {
+        setIsProcessing(false);
+        setCurrentStep(2);
+        toast({
+          title: "Tailoring failed",
+          description: error.message || "Failed to tailor resume",
+          variant: "destructive",
+        });
+      }
       return;
     }
 
@@ -140,6 +146,7 @@ ACHIEVEMENTS
   const handleReset = () => {
     setCurrentStep(1);
     setSelectedFile(null);
+    setSessionId("");
     setJobDescription("");
     setOriginalResume("");
     setTailoredResume("");
