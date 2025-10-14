@@ -1,11 +1,11 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import multer from "multer";
-import { PDFParse } from "pdf-parse";
+const pdfParse = require("pdf-parse");
 import mammoth from "mammoth";
 import OpenAI from "openai";
 import { storage } from "./storage";
-import { insertResumeSessionSchema } from "@shared/schema";
+import { z } from "zod";
 
 const upload = multer({ 
   storage: multer.memoryStorage(),
@@ -16,11 +16,16 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
+const tailorRequestSchema = z.object({
+  sessionId: z.string(),
+  jobDescription: z.string().min(50),
+});
+
 async function parseResumeFile(file: Express.Multer.File): Promise<string> {
   const extension = file.originalname.split('.').pop()?.toLowerCase();
   
   if (extension === 'pdf') {
-    const pdfData = await PDFParse(file.buffer);
+    const pdfData = await pdfParse(file.buffer);
     return pdfData.text;
   } else if (extension === 'docx') {
     const result = await mammoth.extractRawText({ buffer: file.buffer });
@@ -58,11 +63,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/tailor-resume", async (req, res) => {
     try {
-      const { sessionId, jobDescription } = req.body;
-
-      if (!sessionId || !jobDescription) {
-        return res.status(400).json({ error: "Session ID and job description required" });
+      const validation = tailorRequestSchema.safeParse(req.body);
+      
+      if (!validation.success) {
+        return res.status(400).json({ 
+          error: "Invalid request",
+          details: validation.error.errors 
+        });
       }
+
+      const { sessionId, jobDescription } = validation.data;
 
       const session = await storage.getResumeSession(sessionId);
       if (!session) {

@@ -128,7 +128,7 @@ export default function Home() {
     setCurrentStep(currentStep + 1);
   };
 
-  const handleDownload = (format: 'txt' | 'pdf') => {
+  const handleDownload = (format: 'txt') => {
     const blob = new Blob([tailoredResume], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -140,6 +140,14 @@ export default function Home() {
     toast({
       title: "Download started",
       description: `Your tailored resume is downloading as ${format.toUpperCase()}`,
+    });
+  };
+
+  const handleCopyToClipboard = () => {
+    navigator.clipboard.writeText(tailoredResume);
+    toast({
+      title: "Copied to clipboard",
+      description: "Resume content has been copied",
     });
   };
 
@@ -243,18 +251,18 @@ export default function Home() {
                     Start Over
                   </Button>
                   <Button 
+                    variant="outline"
+                    onClick={handleCopyToClipboard}
+                    data-testid="button-copy-clipboard"
+                  >
+                    Copy to Clipboard
+                  </Button>
+                  <Button 
                     onClick={() => handleDownload('txt')}
                     data-testid="button-download-txt"
                   >
                     <Download className="h-4 w-4 mr-2" />
                     Download as TXT
-                  </Button>
-                  <Button 
-                    onClick={() => handleDownload('pdf')}
-                    data-testid="button-download-pdf"
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Download as PDF
                   </Button>
                 </div>
               </div>
