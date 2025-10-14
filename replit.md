@@ -9,6 +9,7 @@ A web application that allows users to upload their resumes (PDF or DOCX), paste
 - Integrated OpenAI GPT-4o-mini for AI-powered resume tailoring
 - Created professional UI with progress stepper and comparison view
 - Added download and clipboard functionality
+- **SECURITY FIX**: Removed URL extraction feature to prevent SSRF vulnerability - users now paste job descriptions manually
 
 ## Project Architecture
 
@@ -27,7 +28,8 @@ A web application that allows users to upload their resumes (PDF or DOCX), paste
    - Automatic text extraction from uploaded documents
 
 2. **Job Description Input**
-   - Textarea with minimum 50 character validation
+   - Simple textarea for manual job description entry
+   - Minimum 50 character validation
    - Character counter for user feedback
    - Validated on both frontend and backend
 
@@ -95,17 +97,23 @@ A web application that allows users to upload their resumes (PDF or DOCX), paste
 ## User Workflow
 1. Upload resume (PDF or DOCX)
 2. System parses and extracts text content
-3. Enter job description (min 50 characters)
+3. Manually paste job description (min 50 characters)
 4. Click "Tailor Resume with AI"
 5. AI analyzes and optimizes resume
 6. View side-by-side comparison
 7. Copy to clipboard or download as TXT
+
+## Security Notes
+- URL extraction feature was removed to prevent SSRF (Server-Side Request Forgery) attacks
+- Users must manually copy and paste job descriptions from job sites
+- This ensures the application only processes trusted, user-provided content
 
 ## Known Limitations
 - Text-only download format (no PDF generation)
 - In-memory storage (sessions reset on server restart)
 - Single session per user (no authentication)
 - Basic text extraction from PDF/DOCX (formatting not preserved)
+- Users must manually copy job descriptions (no URL extraction for security)
 
 ## Testing Notes
 - Automated E2E testing requires valid PDF/DOCX files
