@@ -8,6 +8,9 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 import PDFDocument from "pdfkit";
+import { parseResume } from "./resumeParser";
+import { generateProfessionalDOCX, generateModernDOCX } from "./docxGenerator";
+import { generateProfessionalPDF, generateModernPDF } from "./pdfGenerator";
 
 const upload = multer({ 
   storage: multer.memoryStorage(),
@@ -172,38 +175,15 @@ Return ONLY the tailored resume text, no explanations or additional commentary.`
         return res.status(404).json({ error: "Session not found or resume not tailored" });
       }
 
-      // Parse the resume content into paragraphs
-      const lines = session.tailoredContent.split('\n').filter(line => line.trim());
+      const format = (req.query.format as string) || 'professional';
       
-      // Create document sections
-      const children: Paragraph[] = lines.map((line, index) => {
-        const trimmedLine = line.trim();
-        const isHeading = trimmedLine.length < 60 && 
-                         (trimmedLine === trimmedLine.toUpperCase() || 
-                          /^[A-Z]/.test(trimmedLine) && !trimmedLine.includes('.'));
-        
-        return new Paragraph({
-          children: [
-            new TextRun({
-              text: trimmedLine,
-              bold: isHeading,
-              size: isHeading ? 28 : 22,
-            }),
-          ],
-          spacing: {
-            after: isHeading ? 200 : 100,
-            before: index === 0 ? 0 : 100,
-          },
-        });
-      });
-
-      const doc = new Document({
-        sections: [{
-          children,
-        }],
-      });
-
-      const buffer = await Packer.toBuffer(doc);
+      // Parse the resume
+      const parsedResume = parseResume(session.tailoredContent);
+      
+      // Generate DOCX based on format
+      const buffer = format === 'modern' 
+        ? await generateModernDOCX(parsedResume)
+        : await generateProfessionalDOCX(parsedResume);
       
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
       res.setHeader('Content-Disposition', 'attachment; filename=tailored-resume.docx');
@@ -222,6 +202,11 @@ Return ONLY the tailored resume text, no explanations or additional commentary.`
         return res.status(404).json({ error: "Session not found or resume not tailored" });
       }
 
+      const format = (req.query.format as string) || 'professional';
+      
+      // Parse the resume
+      const parsedResume = parseResume(session.tailoredContent);
+      
       const doc = new PDFDocument({
         size: 'LETTER',
         margins: { top: 72, bottom: 72, left: 72, right: 72 }
@@ -232,31 +217,12 @@ Return ONLY the tailored resume text, no explanations or additional commentary.`
       
       doc.pipe(res);
 
-      const lines = session.tailoredContent.split('\n');
-      let isFirstLine = true;
-
-      lines.forEach(line => {
-        const trimmedLine = line.trim();
-        if (!trimmedLine) {
-          doc.moveDown(0.5);
-          return;
-        }
-
-        const isHeading = trimmedLine.length < 60 && 
-                         (trimmedLine === trimmedLine.toUpperCase() || 
-                          /^[A-Z]/.test(trimmedLine) && !trimmedLine.includes('.'));
-
-        if (!isFirstLine) {
-          doc.moveDown(isHeading ? 0.5 : 0.3);
-        }
-        isFirstLine = false;
-
-        if (isHeading) {
-          doc.fontSize(14).font('Helvetica-Bold').text(trimmedLine);
-        } else {
-          doc.fontSize(11).font('Helvetica').text(trimmedLine);
-        }
-      });
+      // Generate PDF based on format
+      if (format === 'modern') {
+        generateModernPDF(parsedResume, doc);
+      } else {
+        generateProfessionalPDF(parsedResume, doc);
+      }
 
       doc.end();
     } catch (error: any) {

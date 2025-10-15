@@ -5,9 +5,13 @@
 Resume Tailor is a web application that helps users optimize their resumes for specific job postings using AI. Users upload their resume (PDF or DOCX), paste a job description, and receive an AI-tailored version that highlights relevant skills and experience. The application provides a side-by-side comparison view and allows users to download the optimized resume in multiple formats (TXT, DOCX, PDF) or copy it to clipboard.
 
 ## Recent Changes (October 15, 2025)
-- **NEW**: Added DOCX and PDF download functionality for tailored resumes
+- **NEW**: Intelligent resume parser extracts structured data (contact, sections, jobs, education)
+- **NEW**: Professional resume format with right-aligned dates and clean single-column layout
+- **NEW**: Modern resume format with two-column layout featuring sidebar and blue accents
+- **Format Templates**: Professional (ATS-friendly, Template 2 style) and Modern (eye-catching, Template 1 style)
+- **DOCX Export**: Professional uses invisible table borders for date alignment; Modern uses 30/70 sidebar layout with shaded background
+- **PDF Export**: Professional with centered header and right-aligned dates; Modern with blue sidebar and two-column layout
 - Document generation using `docx` library for DOCX files and PDFKit for PDF files
-- Professional formatting with automatic heading detection and proper spacing
 - Architecture ready for future paid feature implementation (Phase 2)
 
 ## User Preferences
