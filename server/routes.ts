@@ -172,6 +172,9 @@ Return ONLY the tailored resume text, no explanations or additional commentary.`
         return res.status(404).json({ error: "Session not found or resume not tailored" });
       }
 
+      const format = (req.query.format as string) || 'professional';
+      const isModern = format === 'modern';
+
       // Parse the resume content into paragraphs
       const lines = session.tailoredContent.split('\n').filter(line => line.trim());
       
@@ -182,19 +185,39 @@ Return ONLY the tailored resume text, no explanations or additional commentary.`
                          (trimmedLine === trimmedLine.toUpperCase() || 
                           /^[A-Z]/.test(trimmedLine) && !trimmedLine.includes('.'));
         
-        return new Paragraph({
-          children: [
-            new TextRun({
-              text: trimmedLine,
-              bold: isHeading,
-              size: isHeading ? 28 : 22,
-            }),
-          ],
-          spacing: {
-            after: isHeading ? 200 : 100,
-            before: index === 0 ? 0 : 100,
-          },
-        });
+        if (isModern) {
+          return new Paragraph({
+            children: [
+              new TextRun({
+                text: trimmedLine,
+                bold: isHeading,
+                size: isHeading ? 32 : 22,
+                color: isHeading ? "1E40AF" : "000000",
+                font: "Calibri",
+              }),
+            ],
+            spacing: {
+              after: isHeading ? 240 : 120,
+              before: index === 0 ? 0 : (isHeading ? 200 : 80),
+            },
+          });
+        } else {
+          return new Paragraph({
+            children: [
+              new TextRun({
+                text: trimmedLine,
+                bold: isHeading,
+                size: isHeading ? 28 : 22,
+                color: "000000",
+                font: "Calibri",
+              }),
+            ],
+            spacing: {
+              after: isHeading ? 200 : 100,
+              before: index === 0 ? 0 : 100,
+            },
+          });
+        }
       });
 
       const doc = new Document({
@@ -222,6 +245,9 @@ Return ONLY the tailored resume text, no explanations or additional commentary.`
         return res.status(404).json({ error: "Session not found or resume not tailored" });
       }
 
+      const format = (req.query.format as string) || 'professional';
+      const isModern = format === 'modern';
+
       const doc = new PDFDocument({
         size: 'LETTER',
         margins: { top: 72, bottom: 72, left: 72, right: 72 }
@@ -247,12 +273,17 @@ Return ONLY the tailored resume text, no explanations or additional commentary.`
                           /^[A-Z]/.test(trimmedLine) && !trimmedLine.includes('.'));
 
         if (!isFirstLine) {
-          doc.moveDown(isHeading ? 0.5 : 0.3);
+          doc.moveDown(isHeading ? (isModern ? 0.6 : 0.5) : 0.3);
         }
         isFirstLine = false;
 
         if (isHeading) {
-          doc.fontSize(14).font('Helvetica-Bold').text(trimmedLine);
+          if (isModern) {
+            doc.fontSize(16).font('Helvetica-Bold').fillColor('#1E40AF').text(trimmedLine);
+            doc.fillColor('#000000');
+          } else {
+            doc.fontSize(14).font('Helvetica-Bold').text(trimmedLine);
+          }
         } else {
           doc.fontSize(11).font('Helvetica').text(trimmedLine);
         }
