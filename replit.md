@@ -2,7 +2,13 @@
 
 ## Overview
 
-Resume Tailor is a web application that helps users optimize their resumes for specific job postings using AI. Users upload their resume (PDF or DOCX), paste a job description, and receive an AI-tailored version that highlights relevant skills and experience. The application provides a side-by-side comparison view and allows users to download or copy the optimized resume.
+Resume Tailor is a web application that helps users optimize their resumes for specific job postings using AI. Users upload their resume (PDF or DOCX), paste a job description, and receive an AI-tailored version that highlights relevant skills and experience. The application provides a side-by-side comparison view and allows users to download the optimized resume in multiple formats (TXT, DOCX, PDF) or copy it to clipboard.
+
+## Recent Changes (October 15, 2025)
+- **NEW**: Added DOCX and PDF download functionality for tailored resumes
+- Document generation using `docx` library for DOCX files and PDFKit for PDF files
+- Professional formatting with automatic heading detection and proper spacing
+- Architecture ready for future paid feature implementation (Phase 2)
 
 ## User Preferences
 
@@ -122,6 +128,8 @@ Preferred communication style: Simple, everyday language.
 **Core Libraries**
 - pdf-parse: PDF text extraction
 - mammoth: DOCX text extraction
+- docx: DOCX document generation for tailored resumes
+- pdfkit: PDF document generation for tailored resumes
 - openai: Official OpenAI API client
 - multer: File upload handling
 - zod: Runtime schema validation
