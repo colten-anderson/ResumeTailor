@@ -128,19 +128,48 @@ export default function Home() {
     setCurrentStep(currentStep + 1);
   };
 
-  const handleDownload = (format: 'txt') => {
-    const blob = new Blob([tailoredResume], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `tailored-resume.${format}`;
-    a.click();
-    URL.revokeObjectURL(url);
-    
-    toast({
-      title: "Download started",
-      description: `Your tailored resume is downloading as ${format.toUpperCase()}`,
-    });
+  const handleDownload = async (format: 'txt' | 'docx' | 'pdf') => {
+    if (format === 'txt') {
+      const blob = new Blob([tailoredResume], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tailored-resume.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Download started",
+        description: `Your tailored resume is downloading as ${format.toUpperCase()}`,
+      });
+    } else {
+      try {
+        const response = await fetch(`/api/download/${format}/${sessionId}`);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to download ${format.toUpperCase()}`);
+        }
+        
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `tailored-resume.${format}`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        toast({
+          title: "Download started",
+          description: `Your tailored resume is downloading as ${format.toUpperCase()}`,
+        });
+      } catch (error: any) {
+        toast({
+          title: "Download failed",
+          description: error.message || `Failed to download ${format.toUpperCase()}`,
+          variant: "destructive",
+        });
+      }
+    }
   };
 
   const handleCopyToClipboard = () => {
@@ -242,28 +271,50 @@ export default function Home() {
                   originalContent={originalResume}
                   tailoredContent={tailoredResume}
                 />
-                <div className="flex justify-center gap-4">
-                  <Button 
-                    variant="outline" 
-                    onClick={handleReset}
-                    data-testid="button-start-over"
-                  >
-                    Start Over
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    onClick={handleCopyToClipboard}
-                    data-testid="button-copy-clipboard"
-                  >
-                    Copy to Clipboard
-                  </Button>
-                  <Button 
-                    onClick={() => handleDownload('txt')}
-                    data-testid="button-download-txt"
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Download as TXT
-                  </Button>
+                <div className="flex flex-col items-center gap-4">
+                  <div className="flex flex-wrap justify-center gap-3">
+                    <Button 
+                      onClick={() => handleDownload('docx')}
+                      size="lg"
+                      data-testid="button-download-docx"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download as DOCX
+                    </Button>
+                    <Button 
+                      onClick={() => handleDownload('pdf')}
+                      size="lg"
+                      data-testid="button-download-pdf"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download as PDF
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      onClick={() => handleDownload('txt')}
+                      size="lg"
+                      data-testid="button-download-txt"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download as TXT
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap justify-center gap-3">
+                    <Button 
+                      variant="outline"
+                      onClick={handleCopyToClipboard}
+                      data-testid="button-copy-clipboard"
+                    >
+                      Copy to Clipboard
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={handleReset}
+                      data-testid="button-start-over"
+                    >
+                      Start Over
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}

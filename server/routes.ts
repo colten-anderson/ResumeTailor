@@ -6,6 +6,8 @@ import mammoth from "mammoth";
 import OpenAI from "openai";
 import { storage } from "./storage";
 import { z } from "zod";
+import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
+import PDFDocument from "pdfkit";
 
 const upload = multer({ 
   storage: multer.memoryStorage(),
@@ -159,6 +161,107 @@ Return ONLY the tailored resume text, no explanations or additional commentary.`
     } catch (error: any) {
       console.error("Error creating test session:", error);
       res.status(500).json({ error: error.message || "Failed to create test session" });
+    }
+  });
+
+  // Generate DOCX file from tailored resume
+  app.get("/api/download/docx/:sessionId", async (req, res) => {
+    try {
+      const session = await storage.getResumeSession(req.params.sessionId);
+      if (!session || !session.tailoredContent) {
+        return res.status(404).json({ error: "Session not found or resume not tailored" });
+      }
+
+      // Parse the resume content into paragraphs
+      const lines = session.tailoredContent.split('\n').filter(line => line.trim());
+      
+      // Create document sections
+      const children: Paragraph[] = lines.map((line, index) => {
+        const trimmedLine = line.trim();
+        const isHeading = trimmedLine.length < 60 && 
+                         (trimmedLine === trimmedLine.toUpperCase() || 
+                          /^[A-Z]/.test(trimmedLine) && !trimmedLine.includes('.'));
+        
+        return new Paragraph({
+          children: [
+            new TextRun({
+              text: trimmedLine,
+              bold: isHeading,
+              size: isHeading ? 28 : 22,
+            }),
+          ],
+          spacing: {
+            after: isHeading ? 200 : 100,
+            before: index === 0 ? 0 : 100,
+          },
+        });
+      });
+
+      const doc = new Document({
+        sections: [{
+          children,
+        }],
+      });
+
+      const buffer = await Packer.toBuffer(doc);
+      
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      res.setHeader('Content-Disposition', 'attachment; filename=tailored-resume.docx');
+      res.send(buffer);
+    } catch (error: any) {
+      console.error("Error generating DOCX:", error);
+      res.status(500).json({ error: error.message || "Failed to generate DOCX" });
+    }
+  });
+
+  // Generate PDF file from tailored resume
+  app.get("/api/download/pdf/:sessionId", async (req, res) => {
+    try {
+      const session = await storage.getResumeSession(req.params.sessionId);
+      if (!session || !session.tailoredContent) {
+        return res.status(404).json({ error: "Session not found or resume not tailored" });
+      }
+
+      const doc = new PDFDocument({
+        size: 'LETTER',
+        margins: { top: 72, bottom: 72, left: 72, right: 72 }
+      });
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename=tailored-resume.pdf');
+      
+      doc.pipe(res);
+
+      const lines = session.tailoredContent.split('\n');
+      let isFirstLine = true;
+
+      lines.forEach(line => {
+        const trimmedLine = line.trim();
+        if (!trimmedLine) {
+          doc.moveDown(0.5);
+          return;
+        }
+
+        const isHeading = trimmedLine.length < 60 && 
+                         (trimmedLine === trimmedLine.toUpperCase() || 
+                          /^[A-Z]/.test(trimmedLine) && !trimmedLine.includes('.'));
+
+        if (!isFirstLine) {
+          doc.moveDown(isHeading ? 0.5 : 0.3);
+        }
+        isFirstLine = false;
+
+        if (isHeading) {
+          doc.fontSize(14).font('Helvetica-Bold').text(trimmedLine);
+        } else {
+          doc.fontSize(11).font('Helvetica').text(trimmedLine);
+        }
+      });
+
+      doc.end();
+    } catch (error: any) {
+      console.error("Error generating PDF:", error);
+      res.status(500).json({ error: error.message || "Failed to generate PDF" });
     }
   });
 
