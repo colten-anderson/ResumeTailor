@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Download, FileDown, LogOut, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import LoadingSpinner from "@/components/LoadingSpinner";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { extractKeywords } from "@/lib/keywords";
 
 const steps = [
   { id: 1, label: 'Upload Resume' },
@@ -35,8 +36,10 @@ export default function Home() {
   const [selectedFormat, setSelectedFormat] = useState<'professional' | 'modern'>('professional');
   const { toast } = useToast();
   const { user, isAuthenticated, isLoading } = useAuth();
-  
+
   const isPro = user?.accountTier === 'pro';
+
+  const highlightTerms = useMemo(() => extractKeywords(jobDescription), [jobDescription]);
   
   // Check for unauthorized errors
   useEffect(() => {
@@ -347,9 +350,10 @@ export default function Home() {
 
             {currentStep === 4 && (
               <div className="space-y-6">
-                <ResumeComparison 
+                <ResumeComparison
                   originalContent={originalResume}
                   tailoredContent={tailoredResume}
+                  highlightTerms={highlightTerms}
                 />
                 
                 <div className="max-w-2xl mx-auto">
