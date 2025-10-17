@@ -4,27 +4,31 @@ interface ResumeComparisonProps {
   originalContent: string;
   tailoredContent: string;
   isLoading?: boolean;
+  highlightTerms?: string[];
 }
 
-export default function ResumeComparison({ 
-  originalContent, 
-  tailoredContent, 
-  isLoading = false 
+export default function ResumeComparison({
+  originalContent,
+  tailoredContent,
+  isLoading = false,
+  highlightTerms
 }: ResumeComparisonProps) {
   return (
-    <div 
+    <div
       className="grid grid-cols-1 lg:grid-cols-2 gap-6"
       data-testid="resume-comparison"
     >
-      <ResumeDisplay 
-        content={originalContent} 
-        title="Original Resume" 
+      <ResumeDisplay
+        content={originalContent}
+        title="Original Resume"
         isLoading={isLoading}
+        highlightTerms={highlightTerms}
       />
-      <ResumeDisplay 
-        content={tailoredContent} 
-        title="Tailored Resume" 
+      <ResumeDisplay
+        content={tailoredContent}
+        title="Tailored Resume"
         isLoading={isLoading}
+        highlightTerms={highlightTerms}
       />
     </div>
   );
