@@ -12,6 +12,9 @@ import FileUpload from "@/components/FileUpload";
 import JobDescriptionInput from "@/components/JobDescriptionInput";
 import ResumeComparison from "@/components/ResumeComparison";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
 
 const steps = [
   { id: 1, label: 'Upload Resume' },
@@ -29,6 +32,7 @@ export default function Home() {
   const [tailoredResume, setTailoredResume] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [selectedFormat, setSelectedFormat] = useState<'professional' | 'modern'>('professional');
   const { toast } = useToast();
   const { user, isAuthenticated, isLoading } = useAuth();
   
@@ -174,7 +178,7 @@ export default function Home() {
       });
     } else {
       try {
-        const response = await fetch(`/api/download/${format}/${sessionId}`);
+        const response = await fetch(`/api/download/${format}/${sessionId}?format=${selectedFormat}`);
         
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
@@ -347,6 +351,50 @@ export default function Home() {
                   originalContent={originalResume}
                   tailoredContent={tailoredResume}
                 />
+                
+                <div className="max-w-2xl mx-auto">
+                  <Card className="p-6">
+                    <div className="space-y-4">
+                      <div>
+                        <h3 className="text-lg font-semibold mb-1">Choose Resume Format</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Select a format style for your downloaded resume
+                        </p>
+                      </div>
+                      
+                      <RadioGroup
+                        value={selectedFormat}
+                        onValueChange={(value) => setSelectedFormat(value as 'professional' | 'modern')}
+                        data-testid="radio-group-format"
+                      >
+                        <div className="flex items-start space-x-3 p-4 rounded-lg border hover-elevate">
+                          <RadioGroupItem value="professional" id="format-professional" data-testid="radio-professional" />
+                          <div className="flex-1">
+                            <Label htmlFor="format-professional" className="cursor-pointer">
+                              <div className="font-medium">Professional</div>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Clean, ATS-friendly format with standard fonts and minimal styling. Best for corporate positions and traditional industries.
+                              </p>
+                            </Label>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-start space-x-3 p-4 rounded-lg border hover-elevate">
+                          <RadioGroupItem value="modern" id="format-modern" data-testid="radio-modern" />
+                          <div className="flex-1">
+                            <Label htmlFor="format-modern" className="cursor-pointer">
+                              <div className="font-medium">Modern</div>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Eye-catching format with accent colors and enhanced typography. Perfect for creative roles and tech positions.
+                              </p>
+                            </Label>
+                          </div>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  </Card>
+                </div>
+
                 <div className="flex flex-col items-center gap-4">
                   {!isPro && (
                     <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 max-w-2xl text-center">
