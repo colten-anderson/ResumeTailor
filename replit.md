@@ -5,14 +5,17 @@
 Resume Tailor is a web application that helps users optimize their resumes for specific job postings using AI. Users upload their resume (PDF or DOCX), paste a job description, and receive an AI-tailored version that highlights relevant skills and experience. The application provides a side-by-side comparison view and allows users to download the optimized resume in multiple formats (TXT, DOCX, PDF) or copy it to clipboard.
 
 ## Recent Changes (October 15, 2025)
+- **NEW**: Replit Auth integration - users can log in with Google, GitHub, X, Apple, or email/password
+- **NEW**: Two-tier account system - Free (copy only) and Pro (DOCX/PDF downloads)
+- **NEW**: PostgreSQL database with user accounts and session management
+- **NEW**: Account tier enforcement on both frontend and backend
+- **NEW**: Professional landing page with pricing tiers display
 - **NEW**: Intelligent resume parser extracts structured data (contact, sections, jobs, education)
-- **NEW**: Professional resume format with right-aligned dates and clean single-column layout
-- **NEW**: Modern resume format with two-column layout featuring sidebar and blue accents
-- **Format Templates**: Professional (ATS-friendly, Template 2 style) and Modern (eye-catching, Template 1 style)
-- **DOCX Export**: Professional uses invisible table borders for date alignment; Modern uses 30/70 sidebar layout with shaded background
-- **PDF Export**: Professional with centered header and right-aligned dates; Modern with blue sidebar and two-column layout
+- **NEW**: Professional and Modern resume formats with DOCX and PDF export
 - Document generation using `docx` library for DOCX files and PDFKit for PDF files
-- Architecture ready for future paid feature implementation (Phase 2)
+- Free accounts: Copy to clipboard, TXT download, unlimited AI tailoring
+- Pro accounts: All features plus DOCX and PDF downloads in Professional and Modern formats
+- Ready for Stripe integration for subscription payments (Phase 2)
 
 ## User Preferences
 
@@ -50,8 +53,10 @@ Preferred communication style: Simple, everyday language.
 
 **Server Framework**
 - Express.js with TypeScript for API endpoints
-- Custom middleware for request logging and error handling
-- No authentication/authorization layer (public access)
+- Replit Auth via OpenID Connect (Passport.js + openid-client)
+- Session management with PostgreSQL session store
+- Authentication middleware protecting all routes
+- Account tier-based access control (free/pro)
 
 **API Design**
 - RESTful endpoints for resume upload and tailoring
@@ -74,39 +79,51 @@ Preferred communication style: Simple, everyday language.
 ### Data Storage
 
 **Storage Strategy**
-- In-memory storage using custom MemStorage class (no database)
-- Session-based data model with UUID identifiers
-- Data stored: original resume content, job description, tailored content, file metadata
-- No persistence across server restarts
-- No user accounts or authentication
+- PostgreSQL database via Neon serverless adapter
+- Drizzle ORM for type-safe database access
+- User accounts with authentication via Replit Auth
+- Resume sessions linked to user accounts
+- Persistent storage with proper data relationships
 
 **Data Schema**
-- ResumeSession type with Zod validation
-- Fields: id, fileName, originalContent, jobDescription, tailoredContent, createdAt
-- Type-safe data access through TypeScript interfaces
+- **users** table: id, email, firstName, lastName, profileImageUrl, accountTier (free/pro), createdAt, updatedAt
+- **resumeSessions** table: id, userId (FK), fileName, originalContent, jobDescription, tailoredContent, createdAt
+- **sessions** table: PostgreSQL session store for Replit Auth (sid, sess, expire)
+- Type-safe access through Drizzle ORM and TypeScript interfaces
 
-**Rationale for In-Memory Storage**
-- Suitable for prototype/demo phase
-- No sensitive data retention requirements
-- Simplifies deployment without database dependencies
-- Easy migration path to PostgreSQL with Drizzle ORM (config already present)
+**Database Operations**
+- DatabaseStorage class implements all CRUD operations
+- User operations: getUser, upsertUser (auto-create on first login)
+- Resume operations: createResumeSession, getResumeSession, updateResumeSession, getUserResumeSessions
+- Cascade delete: deleting a user removes all their resume sessions
+- Schema synchronization via `npm run db:push`
 
 ### Security Considerations
 
-**Removed Features**
-- URL extraction feature removed to prevent SSRF vulnerabilities
-- Users must manually paste job descriptions instead of fetching from URLs
+**Authentication & Authorization**
+- Replit Auth (OpenID Connect) for secure user authentication
+- Session cookies with httpOnly flag and environment-based secure flag
+- All API endpoints protected with isAuthenticated middleware
+- Resume sessions verified to belong to requesting user
+- Account tier checked before allowing premium downloads
 
-**Current Security Measures**
-- File size limits to prevent resource exhaustion
+**Data Protection**
+- Session data encrypted and stored in PostgreSQL
+- Automatic token refresh for expired sessions
+- Users can only access their own resume sessions
+- File uploads limited to 10MB
 - File type validation (PDF and DOCX only)
+
+**Removed/Mitigated Vulnerabilities**
+- URL extraction feature removed to prevent SSRF vulnerabilities
 - Input validation with Zod schemas
+- Proper error handling with 401/403 status codes
 - No server-side file storage (files processed in memory only)
 
 **Future Considerations**
-- Rate limiting not implemented
-- No API key protection
-- No content sanitization for AI-generated text
+- Stripe integration for payment processing (Phase 2)
+- Rate limiting per user account
+- Content sanitization for AI-generated text
 
 ## External Dependencies
 

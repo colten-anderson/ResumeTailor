@@ -1,7 +1,10 @@
-import { useState } from "react";
-import { Download, FileDown } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Download, FileDown, LogOut, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { isUnauthorizedError } from "@/lib/authUtils";
 import { apiRequest } from "@/lib/queryClient";
 import ThemeToggle from "@/components/ThemeToggle";
 import ProgressStepper from "@/components/ProgressStepper";
@@ -31,6 +34,23 @@ export default function Home() {
   const [isUploading, setIsUploading] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState<'professional' | 'modern'>('professional');
   const { toast } = useToast();
+  const { user, isAuthenticated, isLoading } = useAuth();
+  
+  const isPro = user?.accountTier === 'pro';
+  
+  // Check for unauthorized errors
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      toast({
+        title: "Unauthorized",
+        description: "You are logged out. Logging in again...",
+        variant: "destructive",
+      });
+      setTimeout(() => {
+        window.location.href = "/api/login";
+      }, 500);
+    }
+  }, [isAuthenticated, isLoading, toast]);
 
   const handleFileSelect = async (file: File) => {
     setSelectedFile(file);
@@ -133,6 +153,16 @@ export default function Home() {
   };
 
   const handleDownload = async (format: 'txt' | 'docx' | 'pdf') => {
+    // Check if user needs pro for this format
+    if ((format === 'docx' || format === 'pdf') && !isPro) {
+      toast({
+        title: "Pro Account Required",
+        description: `Upgrade to Pro to download as ${format.toUpperCase()}`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (format === 'txt') {
       const blob = new Blob([tailoredResume], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
@@ -151,6 +181,10 @@ export default function Home() {
         const response = await fetch(`/api/download/${format}/${sessionId}?format=${selectedFormat}`);
         
         if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          if (response.status === 403) {
+            throw new Error(errorData.error || "Pro account required for downloads");
+          }
           throw new Error(`Failed to download ${format.toUpperCase()}`);
         }
         
@@ -167,6 +201,18 @@ export default function Home() {
           description: `Your tailored resume is downloading as ${format.toUpperCase()}`,
         });
       } catch (error: any) {
+        if (isUnauthorizedError(error)) {
+          toast({
+            title: "Unauthorized",
+            description: "You are logged out. Logging in again...",
+            variant: "destructive",
+          });
+          setTimeout(() => {
+            window.location.href = "/api/login";
+          }, 500);
+          return;
+        }
+        
         toast({
           title: "Download failed",
           description: error.message || `Failed to download ${format.toUpperCase()}`,
@@ -174,6 +220,10 @@ export default function Home() {
         });
       }
     }
+  };
+  
+  const handleLogout = () => {
+    window.location.href = "/api/logout";
   };
 
   const handleCopyToClipboard = () => {
@@ -201,7 +251,33 @@ export default function Home() {
             <FileDown className="h-6 w-6 text-primary" />
             <h1 className="text-xl font-bold">Resume Tailor</h1>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-3">
+            {user && (
+              <>
+                <Badge 
+                  variant={isPro ? "default" : "secondary"} 
+                  className="gap-1"
+                  data-testid="badge-account-tier"
+                >
+                  {isPro && <Crown className="h-3 w-3" />}
+                  {isPro ? "Pro" : "Free"}
+                </Badge>
+                <span className="text-sm text-muted-foreground hidden sm:inline" data-testid="text-user-email">
+                  {user.email}
+                </span>
+              </>
+            )}
+            <ThemeToggle />
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={handleLogout}
+              data-testid="button-logout"
+            >
+              <LogOut className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Logout</span>
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -320,23 +396,62 @@ export default function Home() {
                 </div>
 
                 <div className="flex flex-col items-center gap-4">
+                  {!isPro && (
+                    <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 max-w-2xl text-center">
+                      <p className="text-sm font-medium mb-2 flex items-center justify-center gap-2">
+                        <Crown className="h-4 w-4 text-primary" />
+                        Upgrade to Pro for Professional Downloads
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Pro accounts can download tailored resumes as DOCX and PDF in Professional and Modern formats.
+                        Currently available: Copy to clipboard
+                      </p>
+                    </div>
+                  )}
                   <div className="flex flex-wrap justify-center gap-3">
-                    <Button 
-                      onClick={() => handleDownload('docx')}
-                      size="lg"
-                      data-testid="button-download-docx"
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Download as DOCX
-                    </Button>
-                    <Button 
-                      onClick={() => handleDownload('pdf')}
-                      size="lg"
-                      data-testid="button-download-pdf"
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Download as PDF
-                    </Button>
+                    {isPro ? (
+                      <>
+                        <Button 
+                          onClick={() => handleDownload('docx')}
+                          size="lg"
+                          data-testid="button-download-docx"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download as DOCX
+                        </Button>
+                        <Button 
+                          onClick={() => handleDownload('pdf')}
+                          size="lg"
+                          data-testid="button-download-pdf"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download as PDF
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button 
+                          onClick={() => handleDownload('docx')}
+                          size="lg"
+                          variant="outline"
+                          disabled
+                          data-testid="button-download-docx-disabled"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download as DOCX (Pro)
+                        </Button>
+                        <Button 
+                          onClick={() => handleDownload('pdf')}
+                          size="lg"
+                          variant="outline"
+                          disabled
+                          data-testid="button-download-pdf-disabled"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download as PDF (Pro)
+                        </Button>
+                      </>
+                    )}
                     <Button 
                       variant="outline"
                       onClick={() => handleDownload('txt')}

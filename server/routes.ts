@@ -8,6 +8,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from "docx";
 import PDFDocument from "pdfkit";
+import { setupAuth, isAuthenticated } from "./replitAuth";
 import { parseResume } from "./resumeParser";
 import { generateProfessionalDOCX, generateModernDOCX } from "./docxGenerator";
 import { generateProfessionalPDF, generateModernPDF } from "./pdfGenerator";
@@ -46,16 +47,32 @@ async function parseResumeFile(file: Express.Multer.File): Promise<string> {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Setup authentication
+  await setupAuth(app);
+
+  // Get user info endpoint
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
   
-  app.post("/api/upload-resume", upload.single('resume'), async (req, res) => {
+  app.post("/api/upload-resume", isAuthenticated, upload.single('resume'), async (req: any, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
       const parsedContent = await parseResumeFile(req.file);
+      const userId = req.user.claims.sub;
       
       const session = await storage.createResumeSession({
+        userId,
         fileName: req.file.originalname,
         originalContent: parsedContent,
       });
@@ -71,7 +88,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/tailor-resume", async (req, res) => {
+  app.post("/api/tailor-resume", isAuthenticated, async (req: any, res) => {
     try {
       const validation = tailorRequestSchema.safeParse(req.body);
       
@@ -84,9 +101,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { sessionId, jobDescription } = validation.data;
 
+      const userId = req.user.claims.sub;
       const session = await storage.getResumeSession(sessionId);
       if (!session) {
         return res.status(404).json({ error: "Session not found" });
+      }
+      
+      // Verify session belongs to user
+      if (session.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
       }
 
       const completion = await openai.chat.completions.create({
@@ -129,12 +152,19 @@ Return ONLY the tailored resume text, no explanations or additional commentary.`
     }
   });
 
-  app.get("/api/session/:id", async (req, res) => {
+  app.get("/api/session/:id", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
       const session = await storage.getResumeSession(req.params.id);
       if (!session) {
         return res.status(404).json({ error: "Session not found" });
       }
+      
+      // Verify session belongs to user
+      if (session.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+      
       res.json(session);
     } catch (error: any) {
       console.error("Error fetching session:", error);
@@ -143,7 +173,7 @@ Return ONLY the tailored resume text, no explanations or additional commentary.`
   });
 
   // Test endpoint for automated testing - accepts text content directly
-  app.post("/api/test/upload-resume-text", async (req, res) => {
+  app.post("/api/test/upload-resume-text", isAuthenticated, async (req: any, res) => {
     try {
       const { fileName, content } = req.body;
       
@@ -151,7 +181,9 @@ Return ONLY the tailored resume text, no explanations or additional commentary.`
         return res.status(400).json({ error: "fileName and content required" });
       }
 
+      const userId = req.user.claims.sub;
       const session = await storage.createResumeSession({
+        userId,
         fileName,
         originalContent: content,
       });
@@ -167,12 +199,25 @@ Return ONLY the tailored resume text, no explanations or additional commentary.`
     }
   });
 
-  // Generate DOCX file from tailored resume
-  app.get("/api/download/docx/:sessionId", async (req, res) => {
+  // Generate DOCX file from tailored resume (Pro accounts only)
+  app.get("/api/download/docx/:sessionId", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      // Check if user has pro account
+      if (user?.accountTier !== 'pro') {
+        return res.status(403).json({ error: "Pro account required for downloads" });
+      }
+      
       const session = await storage.getResumeSession(req.params.sessionId);
       if (!session || !session.tailoredContent) {
         return res.status(404).json({ error: "Session not found or resume not tailored" });
+      }
+      
+      // Verify session belongs to user
+      if (session.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
       }
 
       const format = (req.query.format as string) || 'professional';
@@ -194,12 +239,25 @@ Return ONLY the tailored resume text, no explanations or additional commentary.`
     }
   });
 
-  // Generate PDF file from tailored resume
-  app.get("/api/download/pdf/:sessionId", async (req, res) => {
+  // Generate PDF file from tailored resume (Pro accounts only)
+  app.get("/api/download/pdf/:sessionId", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      // Check if user has pro account
+      if (user?.accountTier !== 'pro') {
+        return res.status(403).json({ error: "Pro account required for downloads" });
+      }
+      
       const session = await storage.getResumeSession(req.params.sessionId);
       if (!session || !session.tailoredContent) {
         return res.status(404).json({ error: "Session not found or resume not tailored" });
+      }
+      
+      // Verify session belongs to user
+      if (session.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
       }
 
       const format = (req.query.format as string) || 'professional';

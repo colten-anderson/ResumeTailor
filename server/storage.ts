@@ -1,42 +1,73 @@
-import { type ResumeSession, type InsertResumeSession } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { db } from "./db";
+import { users, resumeSessions, type User, type UpsertUser, type ResumeSession, type InsertResumeSession } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
+  // User operations (required for Replit Auth)
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
+  
+  // Resume session operations
   createResumeSession(session: InsertResumeSession): Promise<ResumeSession>;
   getResumeSession(id: string): Promise<ResumeSession | undefined>;
   updateResumeSession(id: string, updates: Partial<ResumeSession>): Promise<ResumeSession | undefined>;
+  getUserResumeSessions(userId: string): Promise<ResumeSession[]>;
 }
 
-export class MemStorage implements IStorage {
-  private sessions: Map<string, ResumeSession>;
-
-  constructor() {
-    this.sessions = new Map();
+export class DatabaseStorage implements IStorage {
+  // User operations
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 
-  async createResumeSession(insertSession: InsertResumeSession): Promise<ResumeSession> {
-    const id = randomUUID();
-    const session: ResumeSession = { 
-      ...insertSession, 
-      id,
-      createdAt: new Date(),
-    };
-    this.sessions.set(id, session);
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
+  // Resume session operations
+  async createResumeSession(sessionData: InsertResumeSession): Promise<ResumeSession> {
+    const [session] = await db
+      .insert(resumeSessions)
+      .values(sessionData)
+      .returning();
     return session;
   }
 
   async getResumeSession(id: string): Promise<ResumeSession | undefined> {
-    return this.sessions.get(id);
+    const [session] = await db
+      .select()
+      .from(resumeSessions)
+      .where(eq(resumeSessions.id, id));
+    return session;
   }
 
   async updateResumeSession(id: string, updates: Partial<ResumeSession>): Promise<ResumeSession | undefined> {
-    const session = this.sessions.get(id);
-    if (!session) return undefined;
-    
-    const updated = { ...session, ...updates };
-    this.sessions.set(id, updated);
-    return updated;
+    const [session] = await db
+      .update(resumeSessions)
+      .set(updates)
+      .where(eq(resumeSessions.id, id))
+      .returning();
+    return session;
+  }
+
+  async getUserResumeSessions(userId: string): Promise<ResumeSession[]> {
+    return await db
+      .select()
+      .from(resumeSessions)
+      .where(eq(resumeSessions.userId, userId));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
