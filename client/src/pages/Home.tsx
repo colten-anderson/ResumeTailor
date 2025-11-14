@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { Download, FileDown, LogOut, Crown } from "lucide-react";
+import { Download, FileDown, LogOut, Crown, History } from "lucide-react";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +26,7 @@ const steps = [
 ];
 
 export default function Home() {
+  const [, setLocation] = useLocation();
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [sessionId, setSessionId] = useState<string>("");
@@ -257,8 +259,8 @@ export default function Home() {
           <div className="flex items-center gap-3">
             {user && (
               <>
-                <Badge 
-                  variant={isPro ? "default" : "secondary"} 
+                <Badge
+                  variant={isPro ? "default" : "secondary"}
                   className="gap-1"
                   data-testid="badge-account-tier"
                 >
@@ -270,9 +272,18 @@ export default function Home() {
                 </span>
               </>
             )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setLocation('/history')}
+              data-testid="button-history"
+            >
+              <History className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">History</span>
+            </Button>
             <ThemeToggle />
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="sm"
               onClick={handleLogout}
               data-testid="button-logout"
