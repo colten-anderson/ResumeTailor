@@ -61,7 +61,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch user" });
     }
   });
-  
+
+  // Get all resume sessions for the authenticated user
+  app.get('/api/user/sessions', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const sessions = await storage.getUserResumeSessions(userId);
+      res.json(sessions);
+    } catch (error) {
+      console.error("Error fetching user sessions:", error);
+      res.status(500).json({ message: "Failed to fetch user sessions" });
+    }
+  });
+
   app.post("/api/upload-resume", isAuthenticated, upload.single('resume'), async (req: any, res) => {
     try {
       if (!req.file) {
