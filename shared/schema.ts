@@ -34,6 +34,7 @@ export const resumeSessions = pgTable("resume_sessions", {
   originalContent: text("original_content").notNull(),
   jobDescription: text("job_description"),
   tailoredContent: text("tailored_content"),
+  atsScore: jsonb("ats_score"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

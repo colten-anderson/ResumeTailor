@@ -12,6 +12,7 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 import { parseResume } from "./resumeParser";
 import { generateProfessionalDOCX, generateModernDOCX } from "./docxGenerator";
 import { generateProfessionalPDF, generateModernPDF } from "./pdfGenerator";
+import { calculateATSScore } from "./atsScorer";
 
 const upload = multer({ 
   storage: multer.memoryStorage(),
@@ -150,17 +151,57 @@ Return ONLY the tailored resume text, no explanations or additional commentary.`
 
       const tailoredContent = completion.choices[0]?.message?.content || "";
 
+      // Calculate ATS score for the tailored resume
+      const structuredResume = parseResume(tailoredContent);
+      const atsScore = calculateATSScore(tailoredContent, jobDescription, structuredResume);
+
       await storage.updateResumeSession(sessionId, {
         jobDescription,
         tailoredContent,
+        atsScore: atsScore as any,
       });
 
       res.json({
         tailoredContent,
+        atsScore,
       });
     } catch (error: any) {
       console.error("Error tailoring resume:", error);
       res.status(500).json({ error: error.message || "Failed to tailor resume" });
+    }
+  });
+
+  app.post("/api/calculate-ats-score/:sessionId", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const session = await storage.getResumeSession(req.params.sessionId);
+
+      if (!session) {
+        return res.status(404).json({ error: "Session not found" });
+      }
+
+      // Verify session belongs to user
+      if (session.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
+      if (!session.tailoredContent || !session.jobDescription) {
+        return res.status(400).json({ error: "Session must have tailored content and job description" });
+      }
+
+      // Calculate ATS score
+      const structuredResume = parseResume(session.tailoredContent);
+      const atsScore = calculateATSScore(session.tailoredContent, session.jobDescription, structuredResume);
+
+      // Update session with ATS score
+      await storage.updateResumeSession(req.params.sessionId, {
+        atsScore: atsScore as any,
+      });
+
+      res.json(atsScore);
+    } catch (error: any) {
+      console.error("Error calculating ATS score:", error);
+      res.status(500).json({ error: error.message || "Failed to calculate ATS score" });
     }
   });
 
@@ -171,12 +212,12 @@ Return ONLY the tailored resume text, no explanations or additional commentary.`
       if (!session) {
         return res.status(404).json({ error: "Session not found" });
       }
-      
+
       // Verify session belongs to user
       if (session.userId !== userId) {
         return res.status(403).json({ error: "Access denied" });
       }
-      
+
       res.json(session);
     } catch (error: any) {
       console.error("Error fetching session:", error);

@@ -17,6 +17,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { extractKeywords } from "@/lib/keywords";
+import { ATSScoreDisplay, type ATSScore } from "@/components/ATSScoreDisplay";
 
 const steps = [
   { id: 1, label: 'Upload Resume' },
@@ -33,6 +34,7 @@ export default function Home() {
   const [jobDescription, setJobDescription] = useState("");
   const [originalResume, setOriginalResume] = useState("");
   const [tailoredResume, setTailoredResume] = useState("");
+  const [atsScore, setAtsScore] = useState<ATSScore | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState<'professional' | 'modern'>('professional');
@@ -135,9 +137,10 @@ export default function Home() {
         
         const data = await response.json();
         setTailoredResume(data.tailoredContent);
+        setAtsScore(data.atsScore);
         setIsProcessing(false);
         setCurrentStep(4);
-        
+
         toast({
           title: "Resume tailored!",
           description: "Your resume has been optimized for this position",
@@ -246,6 +249,7 @@ export default function Home() {
     setJobDescription("");
     setOriginalResume("");
     setTailoredResume("");
+    setAtsScore(null);
   };
 
   return (
@@ -366,7 +370,13 @@ export default function Home() {
                   tailoredContent={tailoredResume}
                   highlightTerms={highlightTerms}
                 />
-                
+
+                {atsScore && (
+                  <div className="max-w-4xl mx-auto">
+                    <ATSScoreDisplay score={atsScore} />
+                  </div>
+                )}
+
                 <div className="max-w-2xl mx-auto">
                   <Card className="p-6">
                     <div className="space-y-4">
